@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SocketsChat</title>
+        <script src="/socket.io/socket.io.js"></script>
+    </head><!-- predeterminated -->
+
+    <body>
+        <ul id="msgslist"></ul>
+
+        <form id="msgsarea" action="">
+            <input id="textinput" autocomplete="off" placeholder="Write your message" />
+            <button>Send Message</button>
+            <input type="file" id="imgfile" title="btn"/>
+            <button id="sendimg">Send Image</button>
+        </form>
+
+        <script>
+            const addImgBtn = document.getElementById("imgfile");
+            const sendImgBtn = document.getElementById("sendimg");
+            
+            sendImgBtn.addEventListener("click", () => {
+                const file = addImgBtn.files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const imgData = event.target.result;
+                    socket.emit("send image", imgData);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            ////////
+            const socket = io();
+
+            const username = window.prompt("Username:");
+            socket.emit('new user', username);
+
+            socket.on("dropusername", (message) => {//dropusername comes from the validation and call this function
+                alert(message);
+                const newUsername = window.prompt("Username del new");
+                socket.emit("new user", newUsername);
+                username = newUsername;
+            });
+            
+            const mssgForm = document.getElementById('msgsarea');
+            const txtInput = document.getElementById('textinput');
+
+            mssgForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (txtInput.value) {
+                    if (txtInput.value.startsWith(".")) {
+                        const gettingUser = txtInput.value.split(" ")[0].substr(1);
+                        /*
+                        .split(" ") |:| "Hello world" > txtInput.value.split(" ") => ["Hello", "world"].
+                        [0]         |:| gets the firts element (the suposed user typed)
+                        .substr(1)  |:| remove the first character 
+                        */
+                        const sms = txtInput.value.substr(gettingUser.length + 2);
+                        //.substr(gettingUser.length + 2)  |:| remove the user and two spaces more ['@'<user>](the space here from the input),[...] 
+                        socket.emit("priv message",{//user-to-user
+                            gotusrnme:gettingUser,
+                            sms
+                        });
+                    } else {
+                        socket.emit("new message", txtInput.value);//predeterminated name
+                    }
+                    txtInput.value = "";//restart var
+                }
+            });
+
+            socket.on('send message', (data) => {
+                const messageList = document.getElementById('msgslist');//just this shit changed
+                const chatItem = document.createElement('li');
+                chatItem.textContent = data.user + ': ' + data.message;
+                messageList.appendChild(chatItem);
+                window.scrollTo(0, document.body.scrollHeight);
+            });
+        
+            socket.on('allconnected u', (users) => {
+                const usrsList = document.getElementById("usrslist");//usrslist its like a hidden element from te users of the server
+                usrsList.innerHTML = "";
+                for (const user of users) {//of, is a loop like map coz users is an object from the server
+                    const usrElmt = document.createElement("li");
+                    usrElmt.textContent = user;
+                    usrElmt.addEventListener("click", () => {
+                        txtInput.value = "." + user;
+                        txtInput.focus();
+                    });
+                    usrsList.appendChild(usrElmt);
+                }
+            });
+        
+            socket.on("priv message", (data) => {
+                const privSmsList = document.getElementById("msgslist");
+                const privChatMsg = document.createElement("li");
+                privChatMsg.textContent = "Priv msg from " + data.redir + ": " + data.sms;
+                privSmsList.appendChild(privChatMsg);
+                window.scrollTo(0, document.body.scrollHeight);
+            });
+
+            /////////////////////////////////////////
+            socket.on("new priv message", (gotusrnme) => {
+                const userPrivList = document.getElementById("usrslist");
+                //const usrPrivItem = userPrivList.querySelector(`li:contains(${gotusrnme})`);
+                const usrPrivItem = userPrivList.querySelector((li) => li.textContent.includes(gotusrnme));
+                usrPrivItem.style.fontWeight = "bold";
+                setTimeout(() => {
+                    usrPrivItem.style.fontWeight = "normal";
+                }, 5000);
+            });
+
+            socket.on('send image', (imageData) => {
+                socket.broadcast.emit('receive image', imageData);
+            });
+
+            socket.on('receive image', (imageData) => {
+                const messageList = document.getElementById('msgslist');
+                const chatItem = document.createElement('li');
+                const image = document.createElement('img');
+                image.src = imageData;
+                chatItem.appendChild(image);
+                messageList.appendChild(chatItem);
+                window.scrollTo(0, document.body.scrollHeight);
+            });
+////////////////////////////////////////////////////////
+        </script>
+
+        <style>
+
+        </style>
+    </body>
+</html>
